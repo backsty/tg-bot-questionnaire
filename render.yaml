@@ -13,8 +13,8 @@ services:
       - key: POSTGRES_PASSWORD
         sync: false
       - key: POSTGRES_DB
-        value: quiz_bot
+        sync: false
       - key: POSTGRES_HOST
         sync: false
       - key: POSTGRES_PORT
-        value: 5432
+        value: "5432"
