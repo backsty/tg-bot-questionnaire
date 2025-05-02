@@ -17,17 +17,20 @@ async def cmd_start(message: Message, state: FSMContext):
     # Очищаем предыдущее состояние
     await state.clear()
 
-    # Получаем сессию БД и работаем с ней внутри контекста
-    async for session in get_session():
-        service = QuizService(session)
+    try:
+        # Получаем сессию БД и работаем с ней внутри контекста
+        async for session in get_session():
+            service = QuizService(session)
 
-        # Сохраняем информацию о пользователе
-        await service.update_user_info(
-            user_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-            last_name=message.from_user.last_name
-        )
+            # Сохраняем информацию о пользователе
+            await service.update_user_info(
+                user_id=message.from_user.id,
+                username=message.from_user.username,
+                first_name=message.from_user.first_name,
+                last_name=message.from_user.last_name
+            )
+    except Exception as e:
+        logging.error(f"Ошибка при работе с БД: {e}")
 
     # Формируем приветственное сообщение
     greeting_text = (

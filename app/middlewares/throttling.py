@@ -5,37 +5,45 @@ from aiogram.types import Message, CallbackQuery
 
 
 class ThrottlingMiddleware(BaseMiddleware):
-    """
-    Middleware для ограничения частоты запросов к боту
-    """
-
-    def __init__(self, limit=0.5):
-        self.rate_limit = limit
+    def __init__(self, rate_limit: int = 1):
+        # Простая реализация без внешних зависимостей
         self.cache = {}
-
+        self.rate_limit = rate_limit
+        
     async def __call__(
-            self,
-            handler: Callable[[Message | CallbackQuery, Dict[str, Any]], Awaitable[Any]],
-            event: Message | CallbackQuery,
-            data: Dict[str, Any]
+        self,
+        handler: Callable[[Message | CallbackQuery, Dict[str, Any]], Awaitable[Any]],
+        event: Message | CallbackQuery,
+        data: Dict[str, Any]
     ) -> Any:
-        """
-        Проверяет запросы на превышение лимита
-        """
-        user_id = event.from_user.id
-
-        # Если пользователь уже в кэше и время не истекло
-        current_time = datetime.now().timestamp()
-        if user_id in self.cache:
-            last_request_time = self.cache[user_id]
-            time_passed = current_time - last_request_time
-
-            if time_passed < self.rate_limit:
-                if isinstance(event, CallbackQuery):
-                    await event.answer("Слишком много запросов! Пожалуйста, подождите.", show_alert=True)
-                elif isinstance(event, Message):
-                    await event.answer("Слишком много запросов! Пожалуйста, подождите.")
-                return None
-
-        self.cache[user_id] = current_time
+        # Уникальный ключ для каждого пользователя и действия
+        user_id = event.from_user.id if event.from_user else 0
+        
+        if isinstance(event, Message):
+            key = f"{user_id}:{event.text or event.content_type}"
+        else:
+            key = f"{user_id}:callback:{event.data}"
+        
+        current_time = datetime.now()
+        
+        # Получаем время последнего запроса
+        last_request_time = self.cache.get(key)
+        
+        # Если запрос был недавно, пропускаем
+        if last_request_time and (current_time - last_request_time).total_seconds() < self.rate_limit:
+            return None
+            
+        # Обновляем время последнего запроса
+        self.cache[key] = current_time
+        
+        # Очищаем устаревшие записи
+        keys_to_remove = []
+        for k, v in self.cache.items():
+            if (current_time - v).total_seconds() > 60:  # Удаляем записи старше 60 секунд
+                keys_to_remove.append(k)
+        
+        for k in keys_to_remove:
+            del self.cache[k]
+            
+        # Передаем управление дальше
         return await handler(event, data)

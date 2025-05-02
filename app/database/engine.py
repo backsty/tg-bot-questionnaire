@@ -1,12 +1,12 @@
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
-from app.config import POSTGRES_URI
+from app.config import DATABASE_URL, DEBUG
 
 # Создание асинхронного движка SQLAlchemy
 engine = create_async_engine(
-    f"postgresql+asyncpg://{POSTGRES_URI.split('://', 1)[1]}",
-    echo=False,
+    DATABASE_URL,
+    echo=DEBUG,
 )
 
 # Создание фабрики сессий
