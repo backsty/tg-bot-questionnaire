@@ -1,0 +1,30 @@
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.env
+*.venv/
+*.egg-info/
+*.eggs/
+*.log
+
+# VS Code
+.vscode/
+
+# Alembic
+migrations/versions/*.pyc
+migrations/versions/*.pyo
+migrations/versions/*.pyd
+migrations/versions/__pycache__/
+
+# PostgreSQL
+postgres_data/
+
+# Pytest
+.cache/
+.tox/
+
+# OS-specific
+.DS_Store
+Thumbs.db
