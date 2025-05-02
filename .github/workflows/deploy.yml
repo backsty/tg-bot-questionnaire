@@ -29,6 +29,7 @@ jobs:
           service_id: ${{ secrets.RENDER_SERVICE_ID }}
           api_key: ${{ secrets.RENDER_API_KEY }}
           wait_deploy: true
+          clear_cache: true
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           POSTGRES_USER: postgres
