@@ -1,5 +1,5 @@
 services:
-  # Telegram бот сервис
+  # Telegram бот сервис через поллинг
   - type: worker
     name: tg-bot-questionnaire
     runtime: python
@@ -9,9 +9,13 @@ services:
       - key: BOT_TOKEN
         sync: false
       - key: POSTGRES_USER
-        value: postgres
+        fromDatabase:
+          name: tg-bot-db
+          property: user
       - key: POSTGRES_PASSWORD
-        sync: false
+        fromDatabase:
+          name: tg-bot-db
+          property: password
       - key: POSTGRES_DB
         fromDatabase:
           name: tg-bot-db
