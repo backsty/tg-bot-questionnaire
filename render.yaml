@@ -1,5 +1,4 @@
 services:
-  # Telegram бот сервис
   - type: web
     name: tg-bot-questionnaire
     runtime: python
@@ -7,11 +6,10 @@ services:
     startCommand: gunicorn wsgi:app
     envVars:
       - key: BOT_TOKEN
-        sync: false
-      - key: POSTGRES_USER
-        value: postgres
-      - key: POSTGRES_PASSWORD
-        sync: false
+        sync: false  # Ручное заполнение через UI
+      - key: DEBUG
+        value: "False"
+      # Автоматическое заполнение из базы данных
       - key: POSTGRES_DB
         fromDatabase:
           name: tg-bot-db
@@ -21,9 +19,17 @@ services:
           name: tg-bot-db
           property: host
       - key: POSTGRES_PORT
-        value: "5432"
-      - key: DEBUG
-        value: "False"
+        fromDatabase:
+          name: tg-bot-db
+          property: port
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: tg-bot-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: tg-bot-db
+          property: password
 
 databases:
   - name: tg-bot-db
