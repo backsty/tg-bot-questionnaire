@@ -9,7 +9,9 @@ services:
         sync: false  # Ручное заполнение через UI
       - key: DEBUG
         value: "True"
-      # Автоматическое заполнение из базы данных
+      - key: WEBHOOK_URL
+        value: https://srv-d0a80i3uibrs73baohsg.onrender.com
+      # Нижеприведенные настройки должны подтягиваться автоматически
       - key: POSTGRES_DB
         fromDatabase:
           name: tg-bot-db
@@ -35,4 +37,7 @@ databases:
   - name: tg-bot-db
     databaseName: quiz_bot
     user: postgres
+    ipAllowList: # разрешаем доступ для Render services
+      - source: 0.0.0.0/0
+        description: "Allow connections from anywhere (not recommended for production)"
     plan: free
