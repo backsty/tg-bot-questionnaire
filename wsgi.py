@@ -30,18 +30,25 @@ def app(environ, start_response):
     return [f"Telegram bot is {bot_status}".encode()]
 
 
-# Модифицированная версия запуска бота без сигналов
 def run_bot():
     try:
         logger.info("Запуск бота в процессе Gunicorn")
         
-        # Импортируем только необходимые компоненты
-        from app.config import BOT_TOKEN, PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB
+        from app.config import BOT_TOKEN, PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DB, DATABASE_URL
         from aiogram import Bot
         from aiogram.client.default import DefaultBotProperties
         from aiogram.enums import ParseMode
         from aiogram.dispatcher.dispatcher import Dispatcher
         from aiogram.fsm.storage.memory import MemoryStorage
+        
+        # Добавляем диагностику настроек БД
+        logger.info(f"Настройки подключения к БД:")
+        logger.info(f"POSTGRES_HOST: {PG_HOST}")
+        logger.info(f"POSTGRES_USER: {PG_USER}")
+        logger.info(f"POSTGRES_DB: {PG_DB}")
+        logger.info(f"POSTGRES_PORT: {PG_PORT}")
+        logger.info(f"Пароль установлен: {'Да' if PG_PASSWORD else 'Нет'}")
+        logger.info(f"DATABASE_URL: {DATABASE_URL.replace(PG_PASSWORD, '********') if PG_PASSWORD else DATABASE_URL}")
         
         # Проверяем наличие переменных окружения
         if not all([BOT_TOKEN, PG_USER, PG_PASSWORD, PG_DB, PG_HOST]):
@@ -70,10 +77,18 @@ def run_bot():
                 from app.database.engine import engine
                 from app.database.base import Base
                 
+                # И в функции polling перед подключением:
+                from app.config import DATABASE_URL
+                logger.info(f"Подключение к БД по URL: {DATABASE_URL.replace(PG_PASSWORD, '********')}")
+                
                 # Создаем структуру базы данных
-                async with engine.begin() as conn:
-                    await conn.run_sync(Base.metadata.create_all)
-                logger.info(f"Таблицы базы данных созданы на {PG_HOST}")
+                try:
+                    async with engine.begin() as conn:
+                        await conn.run_sync(Base.metadata.create_all)
+                    logger.info(f"Таблицы базы данных созданы на {PG_HOST}")
+                except Exception as db_error:
+                    logger.error(f"Ошибка при создании таблиц в БД: {db_error}")
+                    logger.warning("Бот будет работать без доступа к базе данных")
                 
                 # Настраиваем команды бота
                 from aiogram.types import BotCommand
@@ -115,6 +130,11 @@ def start_bot_thread():
     if not os.environ.get('BOT_ALREADY_RUNNING'):
         os.environ['BOT_ALREADY_RUNNING'] = 'True'
         logger.info("Запуск потока с ботом")
+
+        # Добавляем задержку для стабилизации подключений
+        time.sleep(15)  # Ждем 15 секунд для инициализации базы данных
+        logger.info("Задержка выполнена, запускаем бота...")
+
         # Запускаем бота в daemon-потоке
         thread = threading.Thread(target=run_bot, daemon=True)
         thread.start()
