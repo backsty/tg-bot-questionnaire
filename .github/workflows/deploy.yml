@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
 
 jobs:
   deploy:
@@ -16,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11' # Используем стабильную версию Python
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
@@ -38,13 +37,11 @@ jobs:
           fi
 
       - name: Deploy to Render
-        uses: JorgeLNJunior/render-deploy@v1.4.3 # Обновляем до актуальной версии
+        uses: JorgeLNJunior/render-deploy@v1.4.3
         with:
-          service-id: ${{ secrets.RENDER_SERVICE_ID }}
-          api-key: ${{ secrets.RENDER_API_KEY }}
-          wait: true # Ожидаем завершения деплоя
-          # Время ожидания деплоя
-          timeout: 300000 # 5 минут в миллисекундах
+          service_id: ${{ secrets.RENDER_SERVICE_ID }}
+          api_key: ${{ secrets.RENDER_API_KEY }}
+          wait_deploy: true
         env:
           BOT_TOKEN: ${{ env.BOT_TOKEN }}
           POSTGRES_USER: ${{ env.POSTGRES_USER }}
@@ -52,4 +49,4 @@ jobs:
           POSTGRES_DB: ${{ env.POSTGRES_DB }}
           POSTGRES_HOST: ${{ env.POSTGRES_HOST }}
           POSTGRES_PORT: ${{ env.POSTGRES_PORT }}
-          DEBUG: ${{ env.DEBUG }}ы
+          DEBUG: ${{ env.DEBUG }}
