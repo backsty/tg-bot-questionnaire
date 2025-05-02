@@ -1,6 +1,5 @@
 from typing import Dict, Any, Callable, Awaitable
 from datetime import datetime
-
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery
 
