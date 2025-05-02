@@ -9,12 +9,24 @@ services:
       - key: BOT_TOKEN
         sync: false
       - key: POSTGRES_USER
-        sync: false
+        value: postgres
       - key: POSTGRES_PASSWORD
         sync: false
       - key: POSTGRES_DB
-        sync: false
+        fromDatabase:
+          name: tg-bot-db
+          property: database
       - key: POSTGRES_HOST
-        sync: false
+        fromDatabase:
+          name: tg-bot-db
+          property: host
       - key: POSTGRES_PORT
         value: "5432"
+      - key: DEBUG
+        value: "False"
+
+databases:
+  - name: tg-bot-db
+    databaseName: quiz_bot
+    user: postgres
+    plan: free

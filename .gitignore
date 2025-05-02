@@ -1,30 +1,40 @@
 # Python
-*.pyc
-*.pyo
-*.pyd
 __pycache__/
-*.env
-*.venv/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
-*.eggs/
+.installed.cfg
+*.egg
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
 *.log
 
-# VS Code
-.vscode/
-
-# Alembic
-migrations/versions/*.pyc
-migrations/versions/*.pyo
-migrations/versions/*.pyd
-migrations/versions/__pycache__/
-
-# PostgreSQL
+# Database
 postgres_data/
-
-# Pytest
-.cache/
-.tox/
-
-# OS-specific
-.DS_Store
-Thumbs.db
