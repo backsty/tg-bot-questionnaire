@@ -17,13 +17,17 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
     logger.warning("BOT_TOKEN не найден в переменных окружения")
 
-# Настройки подключения к PostgreSQL
+# Настройки подключения к PostgreSQL (берем напрямую из переменных окружения)
 PG_USER = os.environ.get("POSTGRES_USER", "postgres")
 PG_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
 PG_HOST = os.environ.get("POSTGRES_HOST", "localhost")
 PG_PORT = os.environ.get("POSTGRES_PORT", "5432")
 PG_DB = os.environ.get("POSTGRES_DB", "quiz_bot")
 DEBUG = os.environ.get("DEBUG", "False").lower() == "true"
+
+# Выводим переменные в лог, чтобы видеть откуда они берутся
+for var in ["POSTGRES_USER", "POSTGRES_HOST", "POSTGRES_DB", "POSTGRES_PORT"]:
+    logger.info(f"Переменная {var} = {os.environ.get(var, 'не задана')}")
 
 # Проверяем значения и логируем (без вывода пароля)
 logger.info(f"Конфигурация БД: {PG_USER}@{PG_HOST}:{PG_PORT}/{PG_DB}")
