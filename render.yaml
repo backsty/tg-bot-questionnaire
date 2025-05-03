@@ -1,10 +1,10 @@
 services:
   # Telegram бот сервис через поллинг
-  - type: worker
+  - type: web
     name: tg-bot-questionnaire
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: python web_server.py
     envVars:
       - key: BOT_TOKEN
         sync: false
@@ -28,6 +28,8 @@ services:
         value: "5432"
       - key: DEBUG
         value: "False"
+      - key: PORT
+        value: "10000"
 
 databases:
   - name: tg-bot-db
