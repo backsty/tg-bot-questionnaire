@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import signal
+import queue
 from dotenv import load_dotenv
 from aiohttp import web
 
@@ -26,6 +27,10 @@ logger = logging.getLogger(__name__)
 
 # Получаем порт из переменной окружения (Render предоставляет PORT)
 PORT = int(os.environ.get("PORT", 10000))
+
+# Очередь сообщений для взаимодействия между потоками
+message_queue = queue.Queue()
+bot_running = True
 
 
 # Функция удаления webhook перед запуском
@@ -56,6 +61,13 @@ async def on_startup():
         import traceback
         logger.error(traceback.format_exc())
     
+    # Устанавливаем команды бота
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="help", description="Помощь по использованию"),
+        BotCommand(command="quiz", description="Начать тест")
+    ])
+    
     logger.info(f"Бот запущен в режиме поллинга")
 
 
@@ -68,24 +80,33 @@ async def on_shutdown():
 
 
 async def start_polling():
-    """Запуск бота в режиме поллинга"""
+    """Запуск бота в режиме поллинга без обработки сигналов"""
+    from aiogram.types import BotCommand
+    
     # Регистрация обработчиков
     register_common_handlers(dp)
     register_quiz_handlers(dp)
     
-    # Устанавливаем обработчики запуска и остановки
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
+    # Запускаем стартовую функцию вручную, вместо регистрации
+    await on_startup()
     
-    # Запускаем бота с поллингом
-    logger.info("Начинаем поллинг...")
-    await dp.start_polling(bot)
+    try:
+        # Используем dp.start_polling с флагом, который отключает обработку сигналов
+        logger.info("Начинаем поллинг...")
+        await dp.start_polling(bot, handle_signals=False)
+    except Exception as e:
+        logger.error(f"Ошибка в процессе поллинга: {e}")
+    finally:
+        # Выполняем shutdown вручную
+        await on_shutdown()
 
 
 def run_bot():
     """Запуск бота в отдельном потоке"""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    global bot_running
+    
     try:
         loop.run_until_complete(start_polling())
     except Exception as e:
@@ -93,13 +114,16 @@ def run_bot():
         import traceback
         logger.error(traceback.format_exc())
     finally:
+        bot_running = False
         loop.close()
 
 
 async def health_check(request):
     """Эндпоинт для проверки работоспособности сервиса"""
-    # Обратите внимание, что бот работает независимо от этого эндпоинта
-    return web.Response(text="Telegram bot is running!")
+    if bot_running:
+        return web.Response(text="Telegram bot is running!")
+    else:
+        return web.Response(text="Bot is not running", status=500)
 
 
 async def on_startup_app(app):
@@ -109,6 +133,18 @@ async def on_startup_app(app):
 
 def main():
     """Основная функция для запуска веб-сервера и бота"""
+    # Обработчик сигналов устанавливаем только в основном потоке
+    def signal_handler(sig, frame):
+        global bot_running
+        logger.info("Получен сигнал завершения, останавливаем сервис...")
+        bot_running = False
+        # Поместить сообщение в очередь для остановки бота
+        message_queue.put("STOP")
+    
+    # Устанавливаем обработчики сигналов только в основном потоке
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     # Запускаем бот в отдельном потоке
     bot_thread = threading.Thread(target=run_bot, daemon=True)
     bot_thread.start()
@@ -121,18 +157,11 @@ def main():
     app.router.add_get("/", health_check)
     app.router.add_get("/health", health_check)
     
-    # Обработчик сигналов для корректного завершения
-    def signal_handler(sig, frame):
-        logger.info("Получен сигнал завершения, останавливаем сервис...")
-        asyncio.get_event_loop().stop()
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
     # Запускаем веб-сервер
     app.on_startup.append(on_startup_app)
     web.run_app(app, host="0.0.0.0", port=PORT)
 
 
 if __name__ == "__main__":
+    from aiogram.types import BotCommand  # Импортируем здесь для использования в функции on_startup
     main()
