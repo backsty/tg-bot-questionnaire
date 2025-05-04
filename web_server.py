@@ -35,15 +35,28 @@ bot_running = True
 
 # Функция удаления webhook перед запуском
 async def remove_webhook():
-    """Удаляет webhook перед запуском поллинга"""
+    """Удаляет webhook перед запуском поллинга и сбрасывает обновления"""
     logger.info("Проверка и удаление webhook...")
-    webhook_info = await bot.get_webhook_info()
-    if webhook_info.url:
-        logger.info(f"Найден активный webhook: {webhook_info.url}")
-        await bot.delete_webhook(drop_pending_updates=False)
-        logger.info("Webhook удален")
-    else:
-        logger.info("Webhook не настроен, запуск в режиме поллинга")
+    try:
+        # Пауза перед проверкой webhook, чтобы избежать конфликтов с предыдущими экземплярами
+        await asyncio.sleep(3)
+        
+        webhook_info = await bot.get_webhook_info()
+        if webhook_info.url:
+            logger.info(f"Найден активный webhook: {webhook_info.url}")
+            # Удаляем webhook с удалением всех ожидающих обновлений
+            await bot.delete_webhook(drop_pending_updates=True)
+            logger.info("Webhook удален и ожидающие обновления сброшены")
+        else:
+            logger.info("Webhook не настроен")
+        
+        # Сбрасываем все ожидающие обновления для избежания конфликтов
+        await bot.get_updates(offset=-1, limit=1)
+        logger.info("Ожидающие обновления сброшены, запуск в режиме поллинга")
+    except Exception as e:
+        logger.error(f"Ошибка при удалении webhook: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 
 # Функция создания таблиц базы данных при запуске
@@ -91,9 +104,13 @@ async def start_polling():
     await on_startup()
     
     try:
-        # Используем dp.start_polling с флагом, который отключает обработку сигналов
-        logger.info("Начинаем поллинг...")
-        await dp.start_polling(bot, handle_signals=False)
+        # Получаем последний update_id и используем его как offset для сброса всех предыдущих обновлений
+        updates = await bot.get_updates(offset=-1, limit=1)
+        offset = updates[-1].update_id + 1 if updates else None
+        logger.info(f"Начинаем поллинг с offset={offset}")
+        
+        # Используем явный offset при запуске поллинга
+        await dp.start_polling(bot, handle_signals=False, polling_timeout=10, reset_webhook=False, skip_updates=True, offset=offset)
     except Exception as e:
         logger.error(f"Ошибка в процессе поллинга: {e}")
     finally:
