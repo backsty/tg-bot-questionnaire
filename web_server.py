@@ -39,22 +39,37 @@ async def remove_webhook():
     logger.info("Проверка и удаление webhook...")
     try:
         # Пауза перед проверкой webhook, чтобы избежать конфликтов с предыдущими экземплярами
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)  # Увеличиваем задержку до 5 секунд
         
-        webhook_info = await bot.get_webhook_info()
-        if webhook_info.url:
-            logger.info(f"Найден активный webhook: {webhook_info.url}")
-            # Удаляем webhook с удалением всех ожидающих обновлений
-            await bot.delete_webhook(drop_pending_updates=True)
-            logger.info("Webhook удален и ожидающие обновления сброшены")
-        else:
-            logger.info("Webhook не настроен")
-        
-        # Сбрасываем все ожидающие обновления для избежания конфликтов
-        await bot.get_updates(offset=-1, limit=1)
-        logger.info("Ожидающие обновления сброшены, запуск в режиме поллинга")
+        # Повторяем попытки удаления webhook при конфликтах
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                webhook_info = await bot.get_webhook_info()
+                if webhook_info.url:
+                    logger.info(f"Найден активный webhook: {webhook_info.url}")
+                    # Удаляем webhook с удалением всех ожидающих обновлений
+                    await bot.delete_webhook(drop_pending_updates=True)
+                    logger.info("Webhook удален и ожидающие обновления сброшены")
+                else:
+                    logger.info("Webhook не настроен")
+                
+                # Сбрасываем все ожидающие обновления для избежания конфликтов
+                await bot.get_updates(offset=-1, limit=1)
+                logger.info("Ожидающие обновления сброшены, запуск в режиме поллинга")
+                
+                # Если дошли сюда без исключений, выходим из цикла
+                break
+            except Exception as e:
+                logger.warning(f"Попытка {attempt}/{max_attempts}: Ошибка при удалении webhook: {e}")
+                await asyncio.sleep(3)  # Ждем перед повторной попыткой
+                
+                # Если это была последняя попытка и все равно есть ошибка
+                if attempt == max_attempts:
+                    logger.error("Исчерпаны все попытки удаления webhook")
+                    raise  # Пробрасываем исключение выше
     except Exception as e:
-        logger.error(f"Ошибка при удалении webhook: {e}")
+        logger.error(f"Критическая ошибка при удалении webhook: {e}")
         import traceback
         logger.error(traceback.format_exc())
 
@@ -103,16 +118,61 @@ async def start_polling():
     # Запускаем стартовую функцию вручную, вместо регистрации
     await on_startup()
     
+    # Добавляем глобальный обработчик для автоматического перезапуска при конфликте
+    conflict_count = 0
+    max_conflicts = 5
+    
     try:
-        # Получаем последний update_id и используем его как offset для сброса всех предыдущих обновлений
-        updates = await bot.get_updates(offset=-1, limit=1)
-        offset = updates[-1].update_id + 1 if updates else None
-        logger.info(f"Начинаем поллинг с offset={offset}")
-        
-        # Используем явный offset при запуске поллинга
-        await dp.start_polling(bot, handle_signals=False, polling_timeout=10, reset_webhook=False, skip_updates=True, offset=offset)
+        while True:  # Цикл для автоматического перезапуска при конфликтах
+            try:
+                # Получаем последний update_id и используем его как offset для сброса всех предыдущих обновлений
+                updates = await bot.get_updates(offset=-1, limit=1)
+                offset = updates[-1].update_id + 1 if updates else None
+                logger.info(f"Начинаем поллинг с offset={offset}")
+                
+                # Используем явный offset при запуске поллинга с ограниченным временем
+                await dp.start_polling(
+                    bot, 
+                    handle_signals=False,
+                    polling_timeout=10,
+                    reset_webhook=False, 
+                    skip_updates=True, 
+                    offset=offset,
+                    timeout=30  # Добавляем таймаут для всех операций
+                )
+                
+                # Если мы дошли до этой точки без исключений, сбрасываем счетчик конфликтов
+                conflict_count = 0
+                
+            except Exception as e:
+                if "Conflict: terminated by other getUpdates request" in str(e):
+                    conflict_count += 1
+                    logger.warning(f"Конфликт с другой инстанцией бота ({conflict_count}/{max_conflicts})")
+                    
+                    if conflict_count >= max_conflicts:
+                        logger.error("Слишком много конфликтов, останавливаем бота")
+                        break
+                        
+                    # Ждем перед повторной попыткой, увеличивая время ожидания с каждой попыткой
+                    wait_time = 5 * conflict_count  # 5, 10, 15, 20, 25 секунд
+                    logger.info(f"Ожидание {wait_time} секунд перед повторной попыткой...")
+                    await asyncio.sleep(wait_time)
+                    
+                    # Сбрасываем webhook и обновления перед новой попыткой
+                    await remove_webhook()
+                    continue
+                    
+                else:
+                    # Для других исключений логируем и выходим
+                    logger.error(f"Ошибка в процессе поллинга: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    break
+                    
     except Exception as e:
-        logger.error(f"Ошибка в процессе поллинга: {e}")
+        logger.error(f"Глобальная ошибка в процессе поллинга: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
     finally:
         # Выполняем shutdown вручную
         await on_shutdown()
@@ -161,6 +221,10 @@ def main():
     # Устанавливаем обработчики сигналов только в основном потоке
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
+    from keepalive import start_monitoring
+    start_monitoring()  # Запускаем мониторинг бота в отдельном потоке
+    logger.info("Мониторинг бота запущен")
     
     # Запускаем бот в отдельном потоке
     bot_thread = threading.Thread(target=run_bot, daemon=True)
@@ -180,5 +244,5 @@ def main():
 
 
 if __name__ == "__main__":
-    from aiogram.types import BotCommand  # Импортируем здесь для использования в функции on_startup
+    from aiogram.types import BotCommand
     main()
